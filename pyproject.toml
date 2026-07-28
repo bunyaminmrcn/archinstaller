@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "archinstaller"
+version = "1.0.0"
+description = "Modern GUI installer for Arch Linux"
+requires-python = ">=3.11"
+dependencies = [
+    "pygobject>=3.46",
+    "pycairo>=1.24",
+]
+classifiers = [
+    "License :: OSI Approved :: GPL-3.0-only",
+    "Operating System :: POSIX :: Linux",
+    "Environment :: X11 Applications :: GTK",
+]
+
+[project.scripts]
+arch-installer = "archinstaller.main:main"
+
+[project.gui-scripts]
+arch-installer-gui = "archinstaller.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
