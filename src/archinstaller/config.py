@@ -14,13 +14,32 @@ class PartitionSpec:
     device: str | None = None
     role: PartitionRole = PartitionRole.ROOT
     size_bytes: int = 0
-    fs_type: FilesystemType = FilesystemType.EXT4
+    fs_type: FilesystemType = FilesystemType.BTRFS
     label: str = ""
     mount_point: str = ""
     mkfs_options: str = ""
     mount_options: str = "defaults,noatime"
     encrypt: bool = False
     luks_name: str = ""
+    btrfs_compression: str = "zstd"
+
+
+BTRFS_DEFAULT_SUBVOLUMES: dict[str, bool] = {
+    "@": True,
+    "@home": True,
+    "@snapshots": True,
+    "@var_log": True,
+    "@var_cache": True,
+    "@pkg": True,
+}
+
+BTRFS_NODATACOW_DIRS: list[str] = [
+    "/var/lib/libvirt/images",
+    "/var/lib/postgres",
+    "/var/lib/mysql",
+    "/var/lib/mongodb",
+    "/var/lib/docker",
+]
 
 
 @dataclass
@@ -90,6 +109,8 @@ class InstallerConfig:
     enable_aur: bool = False
     aur_helper: AurHelper = AurHelper.PARU
     aur_packages: list[str] = field(default_factory=list)
+
+    enable_snapper: bool = False
 
     bootloader: BootloaderType = BootloaderType.GRUB_UEFI
     kernel: str = "linux"

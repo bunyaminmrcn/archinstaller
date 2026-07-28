@@ -114,7 +114,9 @@ class InstallWorker:
             create_filesystem(self._executor, spec, config.encryption_passphrase)
 
         self._log("Mounting partitions")
-        mount_all(self._executor, config.partitions, TARGET_ROOT)
+        root_spec = next((p for p in config.partitions if p.mount_point == "/"), None)
+        compression = root_spec.btrfs_compression if root_spec else "zstd"
+        mount_all(self._executor, config.partitions, TARGET_ROOT, compression)
 
     def _step_pacstrap(self, config: InstallerConfig) -> None:
         packages = ["base", config.kernel, "linux-firmware", "base-devel",
@@ -140,6 +142,12 @@ class InstallWorker:
 
         if config.extra_packages:
             packages.extend(config.extra_packages)
+
+        from archinstaller.constants import FilesystemType
+        if any(p.fs_type == FilesystemType.BTRFS for p in config.partitions):
+            packages.append("btrfs-progs")
+        if config.enable_snapper:
+            packages.append("snapper")
 
         self._log(f"Running pacstrap with {len(packages)} packages")
         install_base(self._executor, packages, TARGET_ROOT)

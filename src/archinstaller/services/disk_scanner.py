@@ -72,7 +72,7 @@ def generate_default_partitions(disk: DiskInfo, is_uefi: bool = True) -> list[Pa
                 disk_device=disk.device,
                 role=PartitionRole.ROOT,
                 size_bytes=0,
-                fs_type=FilesystemType.EXT4,
+                fs_type=FilesystemType.BTRFS,
                 mount_point="/",
             ))
         else:
@@ -80,7 +80,7 @@ def generate_default_partitions(disk: DiskInfo, is_uefi: bool = True) -> list[Pa
                 disk_device=disk.device,
                 role=PartitionRole.ROOT,
                 size_bytes=min_root,
-                fs_type=FilesystemType.EXT4,
+                fs_type=FilesystemType.BTRFS,
                 mount_point="/",
             ))
             home_remaining = remaining - min_root
@@ -89,7 +89,7 @@ def generate_default_partitions(disk: DiskInfo, is_uefi: bool = True) -> list[Pa
                     disk_device=disk.device,
                     role=PartitionRole.HOME,
                     size_bytes=0,
-                    fs_type=FilesystemType.EXT4,
+                    fs_type=FilesystemType.BTRFS,
                     mount_point="/home",
                 ))
     else:
@@ -98,7 +98,7 @@ def generate_default_partitions(disk: DiskInfo, is_uefi: bool = True) -> list[Pa
                 disk_device=disk.device,
                 role=PartitionRole.ROOT,
                 size_bytes=0,
-                fs_type=FilesystemType.EXT4,
+                fs_type=FilesystemType.BTRFS,
                 mount_point="/",
             ))
         else:
@@ -106,14 +106,14 @@ def generate_default_partitions(disk: DiskInfo, is_uefi: bool = True) -> list[Pa
                 disk_device=disk.device,
                 role=PartitionRole.ROOT,
                 size_bytes=min_root,
-                fs_type=FilesystemType.EXT4,
+                fs_type=FilesystemType.BTRFS,
                 mount_point="/",
             ))
             specs.append(PartitionSpec(
                 disk_device=disk.device,
                 role=PartitionRole.HOME,
                 size_bytes=0,
-                fs_type=FilesystemType.EXT4,
+                fs_type=FilesystemType.BTRFS,
                 mount_point="/home",
             ))
 

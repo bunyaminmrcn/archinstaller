@@ -91,6 +91,14 @@ class SummaryStep(StepPage):
         lines.append(f"  Bootloader:      {config.bootloader.value}")
         lines.append(f"  Kernel:          {config.kernel}")
         lines.append(f"  Multilib:        {'Enabled' if config.enable_multilib else 'Disabled'}")
+        lines.append("  Btrfs Settings:")
+        btrfs_root = any(p.fs_type.value == "btrfs" and p.mount_point == "/" for p in config.partitions)
+        if btrfs_root:
+            comp = config.partitions[0].btrfs_compression if config.partitions else "zstd"
+            lines.append(f"    Compression:     {comp}")
+            lines.append(f"    Snapper:         {'Yes' if config.enable_snapper else 'No'}")
+        else:
+            lines.append("    (not using btrfs)")
         lines.append("")
         lines.append("── AUR ──")
         if config.enable_aur:

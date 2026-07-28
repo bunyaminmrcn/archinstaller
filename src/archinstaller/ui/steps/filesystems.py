@@ -4,7 +4,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Gtk, Adw, GLib
 
-from archinstaller.config import InstallerConfig, PartitionSpec
+from archinstaller.config import InstallerConfig, PartitionSpec, BTRFS_DEFAULT_SUBVOLUMES
 from archinstaller.constants import StepID, FilesystemType, PartitionRole
 from archinstaller.ui.step_base import StepPage
 
@@ -24,6 +24,8 @@ _FS_OPTIONS: list[tuple[str, FilesystemType]] = [
     ("f2fs", FilesystemType.F2FS),
 ]
 
+_BTRFS_COMPRESSION_OPTIONS = ["zstd", "lzo", "zlib", "none"]
+
 
 class FilesystemsStep(StepPage):
     step_id = StepID.FILESYSTEMS
@@ -31,13 +33,15 @@ class FilesystemsStep(StepPage):
     subtitle = "Configure partition filesystems and mount points"
 
     def build_ui(self) -> None:
+        self._specs_map: dict[int, PartitionSpec] = {}
+
         self._list_box = Gtk.ListBox()
         self._list_box.set_selection_mode(Gtk.SelectionMode.NONE)
         self._list_box.get_style_context().add_class("rich-list")
 
         scrolled = Gtk.ScrolledWindow(vexpand=True)
         scrolled.set_child(self._list_box)
-        scrolled.set_min_content_height(300)
+        scrolled.set_min_content_height(260)
 
         self._encrypt_switch = Gtk.Switch()
         self._encrypt_switch.set_valign(Gtk.Align.CENTER)
@@ -56,13 +60,73 @@ class FilesystemsStep(StepPage):
         pass_box.append(Gtk.Label(label="Passphrase:", halign=Gtk.Align.START))
         pass_box.append(self._passphrase_entry)
 
+        btrfs_label = Gtk.Label(label="Btrfs Settings", halign=Gtk.Align.START)
+        btrfs_label.get_style_context().add_class("heading")
+        btrfs_label.set_margin_top(18)
+        self._btrfs_label = btrfs_label
+        self._btrfs_label.set_visible(False)
+
+        compression_box = Gtk.Box(spacing=8)
+        compression_box.set_margin_top(6)
+        compression_box.append(Gtk.Label(label="Compression:", halign=Gtk.Align.START))
+        self._compression_combo = Gtk.ComboBoxText()
+        for opt in _BTRFS_COMPRESSION_OPTIONS:
+            self._compression_combo.append_text(opt)
+        self._compression_combo.set_active(0)
+
+        self._subvol_expander = Gtk.Expander(label="Subvolumes")
+        self._subvol_expander.set_margin_top(6)
+        subvol_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        subvol_box.set_margin_start(12)
+        subvol_box.set_margin_top(6)
+        self._subvol_checkboxes: list[tuple[str, Gtk.CheckButton]] = []
+        for subvol, enabled in BTRFS_DEFAULT_SUBVOLUMES.items():
+            cb = Gtk.CheckButton.new_with_label(
+                f"{subvol}  →  {('/root' if subvol == '@' else '/' + subvol[1:].replace('_', '/'))}"
+            )
+            cb.set_active(enabled)
+            self._subvol_checkboxes.append((subvol, cb))
+            subvol_box.append(cb)
+        self._subvol_expander.set_child(subvol_box)
+        self._subvol_expander.set_visible(False)
+        self._compression_combo.set_visible(False)
+
+        self._snapper_check = Gtk.CheckButton.new_with_label("Install snapper for snapshot management")
+        self._snapper_check.set_active(False)
+        self._snapper_check.set_visible(False)
+
         self.content_box.append(scrolled)
         self.content_box.append(encrypt_box)
         self.content_box.append(pass_box)
+        self.content_box.append(btrfs_label)
+        self.content_box.append(compression_box)
+        self.content_box.append(self._subvol_expander)
+        self.content_box.append(self._snapper_check)
 
     def _on_encrypt_toggled(self, switch, param) -> None:
         self._passphrase_entry.set_visible(switch.get_active())
         self.notify_complete()
+
+    def _on_fs_changed(self, combo: Gtk.ComboBoxText, spec: PartitionSpec) -> None:
+        idx = combo.get_active()
+        if 0 <= idx < len(_FS_OPTIONS):
+            spec.fs_type = _FS_OPTIONS[idx][1]
+        self._update_btrfs_visibility()
+        self.notify_complete()
+
+    def _update_btrfs_visibility(self) -> None:
+        has_btrfs_root = any(
+            s.fs_type == FilesystemType.BTRFS and s.mount_point == "/"
+            for s in self._specs_map.values()
+        )
+        self._btrfs_label.set_visible(has_btrfs_root)
+        self._subvol_expander.set_visible(has_btrfs_root)
+        self._compression_combo.get_parent().set_visible(has_btrfs_root)
+        self._compression_combo.set_visible(has_btrfs_root)
+        self._snapper_check.set_visible(has_btrfs_root)
+        if self._compression_combo.get_parent().get_first_child():
+            for child in self._compression_combo.get_parent():
+                child.set_visible(has_btrfs_root)
 
     def on_enter(self, config: InstallerConfig) -> None:
         while True:
@@ -71,8 +135,12 @@ class FilesystemsStep(StepPage):
                 break
             self._list_box.remove(row)
 
+        self._specs_map = {}
         for i, spec in enumerate(config.partitions):
+            self._specs_map[i] = spec
             self._list_box.append(self._build_partition_row(spec, i))
+
+        self._update_btrfs_visibility()
 
     def _build_partition_row(self, spec: PartitionSpec, index: int) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
@@ -105,12 +173,6 @@ class FilesystemsStep(StepPage):
         row.set_child(box)
         return row
 
-    def _on_fs_changed(self, combo: Gtk.ComboBoxText, spec: PartitionSpec) -> None:
-        idx = combo.get_active()
-        if 0 <= idx < len(_FS_OPTIONS):
-            spec.fs_type = _FS_OPTIONS[idx][1]
-        self.notify_complete()
-
     def _fmt_size(self, b: int) -> str:
         for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
             if b < 1024:
@@ -132,3 +194,10 @@ class FilesystemsStep(StepPage):
                 if spec.role == PartitionRole.ROOT:
                     spec.encrypt = True
                     spec.luks_name = "luks-root"
+
+        comp_idx = self._compression_combo.get_active()
+        comp = _BTRFS_COMPRESSION_OPTIONS[comp_idx] if comp_idx >= 0 else "zstd"
+        for spec in config.partitions:
+            spec.btrfs_compression = comp
+
+        config.enable_snapper = self._snapper_check.get_active()
